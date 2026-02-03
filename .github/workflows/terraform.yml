@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   AWS_ACCOUNT_ID: "043391333434"
-  TF_ACTION: "destroy"
+  TF_ACTION: "apply"
 
 jobs:
   terraform:
