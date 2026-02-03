@@ -1,4 +1,4 @@
-name: Terraform Lambda Java
+name: Terraform AWS Deploy
 
 on:
   push:
@@ -10,72 +10,45 @@ permissions:
   contents: read
 
 env:
-  AWS_ACCOUNT_ID: "043391333434"
   AWS_REGION: "us-east-1"
-  TF_ACTION: apply # altere para 'destroy' para destruir a infraestrutura
+  AWS_ACCOUNT_ID: "043391333434"
+  TF_ACTION: "apply"
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Autenticar com AWS via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/Github-Actions-Terraform-Role
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Validar autenticação AWS
-        run: echo "Validando autenticação AWS"
-          aws sts get-caller-identity
-
-      - name: Setup Java
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Compilar Lambda Java
+      - name: Build Lambda
         working-directory: lambda
-        run: echo "Compilando Lambda Java"
-          mvn clean package
+        run: mvn clean package
 
-      - name: Instalar Terraform
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{env.AWS_ACCOUNT_ID}}:role/Github-Actions-Terraform-Role
+          aws-region: ${{env.AWS_REGION}}
+
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
         working-directory: terraform
-        run: echo "Inicializando Terraform"
-          terraform init
-
-      - name: Terraform Validate
-        working-directory: terraform
-        run: echo "Validando configuração Terraform"
-          terraform validate
+        run: terraform init
 
       - name: Terraform Plan
-        if: env.TF_ACTION == 'apply'
         working-directory: terraform
-        run: echo "Planejando aplicação Terraform"
-          terraform plan -out=tfplan
+        run: terraform plan
 
       - name: Terraform Apply
-        if: env.TF_ACTION == 'apply'
         working-directory: terraform
-        run: echo "Aplicando configuração Terraform"
-          terraform apply -auto-approve tfplan
-
-      - name: valida lambda criada
-        if: env.TF_ACTION == 'apply'
-        run: echo "Validando se a Lambda foi criada"
-          LAMBDA_NAME=$(terraform -chdir=terraform output -raw lambda_function_name)
-          aws lambda get-function --function-name $LAMBDA_NAME
-
-      - name: Terraform Destroy
-        if: env.TF_ACTION == 'destroy'
-        working-directory: terraform
-        run: echo "Destruindo infraestrutura Terraform"
-          terraform destroy -auto-approve
+        run: terraform ${{env.TF_ACTION}} -auto-approve
