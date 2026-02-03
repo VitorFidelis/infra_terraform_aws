@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   AWS_ACCOUNT_ID: "043391333434"
-  TF_ACTION: "destroy"
+  TF_ACTION: "apply"
 
 jobs:
   terraform:
@@ -49,6 +49,11 @@ jobs:
         working-directory: terraform
         run: terraform plan
 
-      - name: Terraform Apply
+      - name: Terraform Import Lambda
+        working-directory: terraform
+        if: env.TF_ACTION == 'destroy'
+        run: terraform import aws_lambda_function.hello_lambda hello-java-lambda
+
+      - name: Terraform Apply or destroy
         working-directory: terraform
         run: terraform ${{env.TF_ACTION}} -auto-approve
