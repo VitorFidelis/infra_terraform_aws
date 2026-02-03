@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_ACCOUNT_ID: "043391333434"
   AWS_REGION: "us-east-1"
-  TF_ACTION: destroy # altere para 'destroy' para destruir a infraestrutura
+  TF_ACTION: apply # altere para 'destroy' para destruir a infraestrutura
 
 jobs:
   terraform:
