@@ -1,3 +1,4 @@
+# Terraform configuration for deploying a Java AWS Lambda function
 resource "aws_lambda_function" "hello_lambda" {
   function_name = "hello-java-lambda"
 

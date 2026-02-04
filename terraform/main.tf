@@ -1,4 +1,4 @@
-# Este arquivo define uma função Lambda de AWS escrita en Java
+# AWS Provider Configuration
 provider "aws" {
   region = "us-east-1"
 }
