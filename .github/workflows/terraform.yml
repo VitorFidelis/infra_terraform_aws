@@ -60,6 +60,7 @@ jobs:
       # Validate Lambda import (state + AWS)
       - name: Validate Lambda Import
         if: env.TF_ACTION == 'destroy'
+        working-directory: terraform
         run: |
           FUNCTION_NAME="hello-java-lambda"
 
@@ -86,6 +87,7 @@ jobs:
       # Validate SQS import (state + AWS)
       - name: Validate SQS Import
         if: env.TF_ACTION == 'destroy'
+        working-directory: terraform
         run: |
           QUEUE_NAME="hello-java-lambda-queue"
 
