@@ -82,7 +82,17 @@ jobs:
       - name: Terraform Import SQS
         if: env.TF_ACTION == 'destroy'
         working-directory: terraform
-        run: terraform import aws_sqs_queue.hello_queue hello-java-lambda-queue
+        run: |
+          QUEUE_NAME="hello-java-lambda-queue"
+
+          QUEUE_URL=$(aws sqs get-queue-url \
+            --queue-name "$QUEUE_NAME" \
+            --query 'QueueUrl' \
+            --output text)
+
+          echo "Importando SQS: $QUEUE_URL"
+
+          terraform import aws_sqs_queue.hello_queue "$QUEUE_URL"
 
       # Validate SQS import (state + AWS)
       - name: Validate SQS Import
