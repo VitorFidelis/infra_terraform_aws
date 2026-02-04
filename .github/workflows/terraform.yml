@@ -12,94 +12,112 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   AWS_ACCOUNT_ID: "043391333434"
-  TF_ACTION: "destroy"
+  TF_ACTION: "apply"
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
 
     steps:
-        # Checkout repository
+      # Checkout repository
       - name: Checkout
         uses: actions/checkout@v4
 
-        # Set up Java for building the Lambda function
+      # Configure AWS credentials using OIDC
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/Github-Actions-Terraform-Role
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Setup Java (não é necessário para destroy, mas mantido)
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-        # Build the Lambda function using Maven
-      - name: Build Lambda
-        working-directory: lambda
-        run: mvn clean package
-
-        # Configure AWS credentials using OIDC
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{env.AWS_ACCOUNT_ID}}:role/Github-Actions-Terraform-Role
-          aws-region: ${{env.AWS_REGION}}
-
-        # Set up Terraform
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-        # Initialize Terraform
+      # Initialize Terraform
       - name: Terraform Init
         working-directory: terraform
         run: terraform init
 
-        # Generate Terraform plan
+      # Build the Lambda function
+      - name: Build Lambda
+        working-directory: lambda
+        run: mvn clean package
+
+      # Import existing Lambda function in state if destroying
+      - name: Terraform Import Lambda
+        if: env.TF_ACTION == 'destroy'
+        working-directory: terraform
+        run: terraform import aws_lambda_function.hello_lambda hello-java-lambda
+
+      # Validate Lambda import (state + AWS)
+      - name: Validate Lambda Import
+        if: env.TF_ACTION == 'destroy'
+        run: |
+          FUNCTION_NAME="hello-java-lambda"
+
+          # valida state
+          terraform state list | grep -q aws_lambda_function.hello_lambda || {
+            echo "❌ Lambda não está no state"
+            exit 1
+          }
+
+          # valida AWS
+          if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+            echo "✅ Lambda importada com sucesso e existe na AWS"
+          else
+            echo "❌ Lambda não existe na AWS"
+            exit 1
+          fi
+
+      # Import existing SQS queue in state if destroying
+      - name: Terraform Import SQS
+        if: env.TF_ACTION == 'destroy'
+        working-directory: terraform
+        run: terraform import aws_sqs_queue.hello_queue hello-java-lambda-queue
+
+      # Validate SQS import (state + AWS)
+      - name: Validate SQS Import
+        if: env.TF_ACTION == 'destroy'
+        run: |
+          QUEUE_NAME="hello-java-lambda-queue"
+
+          # valida state
+          terraform state list | grep -q aws_sqs_queue.hello_queue || {
+            echo "❌ SQS não está no state"
+            exit 1
+          }
+
+          # valida AWS
+          if aws sqs get-queue-url --queue-name "$QUEUE_NAME" >/dev/null 2>&1; then
+            echo "✅ SQS importada com sucesso e existe na AWS"
+          else
+            echo "❌ SQS não existe na AWS"
+            exit 1
+          fi
+
+      # Generate Terraform plan (opcional no destroy)
       - name: Terraform Plan
         working-directory: terraform
         run: terraform plan
 
-        # Import existing Lambda function in state if destroying
-      - name: Terraform Import Lambda
-        working-directory: terraform
-        if: env.TF_ACTION == 'destroy'
-        run: terraform import aws_lambda_function.hello_lambda hello-java-lambda
-
-        # Validate the import lmabda function created the resource in state
-      - name: Validate Lambda Import
-        working-directory: terraform
-        run: |
-          if terraform state list | grep -q aws_lambda_function.hello_lambda; then
-            echo "Lambda importada"
-          else
-            echo "Import falhou"
-            exit 1
-          fi
-
-        # Import existing SQS queue in state if destroying
-      - name: Terraform Import SQS
-        working-directory: terraform
-        if: env.TF_ACTION == 'destroy'
-        run: terraform import aws_sqs_queue.hello_queue hello-java-lambda-queue
-
-        # Validate the import SQS queue created the resource in state
-      - name: Validate SQS Import
-        working-directory: terraform
-        run: |
-          if terraform state list | grep -q aws_sqs_queue.hello_queue; then
-            echo "SQS importada"
-          else
-            echo "Import falhou"
-            exit 1
-          fi
-
-        # Apply or destroy Terraform configuration
-      - name: Terraform Apply or destroy
+      # Destroy Terraform resources
+      - name: Terraform Destroy
         working-directory: terraform
         run: terraform ${{env.TF_ACTION}} -auto-approve
-          
-        # Validate the SQS queue is destroyed
+
+      # Validate the SQS queue is destroyed
       - name: Validate SQS Destroyed
         if: env.TF_ACTION == 'destroy'
         run: |
-          QUEUE_NAME="hello-queue"
+          QUEUE_NAME="hello-java-lambda-queue"
 
           RESULT=$(aws sqs list-queues --queue-name-prefix "$QUEUE_NAME")
 
@@ -110,7 +128,7 @@ jobs:
             echo "✅ SQS destruída com sucesso"
           fi
 
-        # Validate the lambda function is destroyed
+      # Validate the Lambda function is destroyed
       - name: Validate Lambda Destroyed
         if: env.TF_ACTION == 'destroy'
         run: |
