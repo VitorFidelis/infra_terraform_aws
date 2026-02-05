@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   AWS_ACCOUNT_ID: "043391333434"
-  TF_ACTION: "appply"
+  TF_ACTION: "apply"
   FUNCTION_NAME: "hello-java-lambda"
   QUEUE_NAME: "hello-queue"
 
