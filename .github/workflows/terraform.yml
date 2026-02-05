@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   AWS_ACCOUNT_ID: "043391333434"
-  TF_ACTION: "destroy"  # apply or destroy
+  TF_ACTION: "apply"  # apply or destroy
   FUNCTION_NAME: "hello-java-lambda"
   QUEUE_NAME: "hello-queue"
   MAPPING_UUID_TRIGGER: "5f76a14f-6b06-4145-99b2-07e10e7be6bd"
