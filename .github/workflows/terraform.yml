@@ -130,19 +130,6 @@ jobs:
             exit 1
           fi
 
-        ################ TRIGGER LAMBDA + SQS ################
-
-        # Import existing Lambda SQS Trigger in state if destroying
-      - name: Terraform Import Lambda SQS Trigger
-        if: env.TF_ACTION == 'destroy'
-        working-directory: terraform
-        run: |
-          MAPPING_UUID=${{env.MAPPING_UUID_TRIGGER}}
-          echo "✅ Importando Lambda SQS Trigger"
-          terraform import \
-            aws_lambda_event_source_mapping.sqs_trigger \
-            "$MAPPING_UUID"
-
         ################ SNS ################
 
         # Import existing SNS in state if destroying
