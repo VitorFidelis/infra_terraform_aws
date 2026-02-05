@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   AWS_ACCOUNT_ID: "043391333434"
-  TF_ACTION: "destroy"  # apply or destroy
+  TF_ACTION: "apply"  # apply or destroy
   FUNCTION_NAME: "hello-java-lambda"
   QUEUE_NAME: "hello-queue"
   MAPPING_UUID_TRIGGER: "5f76a14f-6b06-4145-99b2-07e10e7be6bd"
@@ -54,13 +54,20 @@ jobs:
         working-directory: lambda
         run: mvn clean package
 
+        #########################################
+        ## DESTROY FLOW
+        #########################################
+
+
+        ################ LAMBDA ################
+
         # Import existing Lambda function in state if destroying
       - name: Terraform Import Lambda
         if: env.TF_ACTION == 'destroy'
         working-directory: terraform
         run: |
           FUNCTION_NAME=${{env.FUNCTION_NAME}}
-          echo "✅ Importando FUNCTION LAMBDA: $FUNCTION_NAME"
+          echo "✅ Importando FUNCTION LAMBDA"
           terraform import aws_lambda_function.hello_lambda hello-java-lambda
 
         # Validate Lambda import (state + AWS)
@@ -72,17 +79,19 @@ jobs:
 
           # valida state
           terraform state list | grep -q aws_lambda_function.hello_lambda || {
-            echo "❌ Lambda: $FUNCTION_NAME não está no state"
+            echo "❌ Lambda não está no state"
             exit 1
           }
 
           # valida AWS
           if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
-            echo "✅ Lambda: $FUNCTION_NAME importada com sucesso e existe na AWS"
+            echo "✅ Lambda importada com sucesso e existe na AWS"
           else
-            echo "❌ Lambda: $FUNCTION_NAME não existe na AWS"
+            echo "❌ Lambda não existe na AWS"
             exit 1
           fi
+
+        ################ SQS ################
 
         # Import existing SQS queue in state if destroying
       - name: Terraform Import SQS
@@ -109,17 +118,19 @@ jobs:
 
           # valida state
           terraform state list | grep -q aws_sqs_queue.hello_queue || {
-            echo "❌ SQS: $QUEUE_NAME não está no state"
+            echo "❌ SQS não está no state"
             exit 1
           }
 
           # valida AWS
           if aws sqs get-queue-url --queue-name "$QUEUE_NAME" >/dev/null 2>&1; then
-            echo "✅ SQS: $QUEUE_NAME importada com sucesso e existe na AWS"
+            echo "✅ SQS importada com sucesso e existe na AWS"
           else
-            echo "❌ SQS: $QUEUE_NAME não existe na AWS"
+            echo "❌ SQS não existe na AWS"
             exit 1
           fi
+
+        ################ TRIGGER LAMBDA + SQS ################
 
         # Import existing Lambda SQS Trigger in state if destroying
       - name: Terraform Import Lambda SQS Trigger
@@ -127,20 +138,23 @@ jobs:
         working-directory: terraform
         run: |
           MAPPING_UUID=${{env.MAPPING_UUID_TRIGGER}}
-          echo "✅ Importando Lambda SQS Trigger: $MAPPING_UUID"
+          echo "✅ Importando Lambda SQS Trigger"
           terraform import \
             aws_lambda_event_source_mapping.sqs_trigger \
             "$MAPPING_UUID"
-          
 
+        ################ SNS ################
+
+        # Import existing SNS in state if destroying
       - name: Terraform import SNS
         if: env.TF_ACTION == 'destroy'
         working-directory: terraform
         run: |
           TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-java-sns-topic"
-          echo "✅ Importando SNS topic: $TOPIC_ARN"
+          echo "✅ Importando SNS topic"
           terraform import aws_sns_topic.hello_topic "$TOPIC_ARN"
 
+        # Validate SNS import (state + AWS)
       - name: Validate SNS Import
         if: env.TF_ACTION == 'destroy'
         working-directory: terraform
@@ -149,29 +163,38 @@ jobs:
 
           # valida state
           terraform state list | grep -q aws_sns_topic.hello_topic || {
-            echo "❌ SNS: $TOPIC_ARN não está no state"
+            echo "❌ SNS não está no state"
             exit 1
           }
 
           # valida AWS
           if aws sns get-topic-attributes --topic-arn "$TOPIC_ARN" >/dev/null 2>&1; then
-            echo "✅ SNS: $TOPIC_ARN importada com sucesso e existe na AWS"
+            echo "✅ SNS importada com sucesso e existe na AWS"
           else
-            echo "❌ SNS: $TOPIC_ARN não existe na AWS"
+            echo "❌ SNS não existe na AWS"
             exit 1
           fi
+          
 
-      # Generate Terraform plan (opcional no destroy)
+        #########################################
+        ## END DESTROY FLOW
+        #########################################
+
+        # Generate Terraform plan (opcional no destroy)
       - name: Terraform Plan
         working-directory: terraform
         run: terraform plan
 
-      # Apply or Destroy Terraform resources
+        # Apply or Destroy Terraform resources
       - name: Terraform Apply/Destroy
         working-directory: terraform
         run: terraform ${{env.TF_ACTION}} -auto-approve
 
-      # Validate the SQS queue is destroyed
+        ########################################
+        ## VALIDATIONS AFTER DESTROY IN AWS
+        ########################################
+
+        # Validate the SQS queue is destroyed
       - name: Validate SQS Destroyed
         if: env.TF_ACTION == 'destroy'
         run: |
@@ -180,23 +203,23 @@ jobs:
           RESULT=$(aws sqs list-queues --queue-name-prefix "$QUEUE_NAME")
 
           if echo "$RESULT" | grep -q "$QUEUE_NAME"; then
-            echo "❌ SQS: $QUEUE_NAME ainda existe na AWS"
+            echo "❌ SQS ainda existe na AWS"
             exit 1
           else
-            echo "✅ SQS: $QUEUE_NAME destruída com sucesso"
+            echo "✅ SQS destruída com sucesso"
           fi
 
-      # Validate the Lambda function is destroyed
+        # Validate the Lambda function is destroyed
       - name: Validate Lambda Destroyed
         if: env.TF_ACTION == 'destroy'
         run: |
           FUNCTION_NAME=${{env.FUNCTION_NAME}}
 
           if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
-            echo "❌ Lambda: $FUNCTION_NAME ainda existe na AWS"
+            echo "❌ Lambda ainda existe na AWS"
             exit 1
           else
-            echo "✅ Lambda: $FUNCTION_NAME destruída com sucesso"
+            echo "✅ Lambda destruída com sucesso"
           fi
 
         # Validate the SNS topic is destroyed
@@ -206,10 +229,10 @@ jobs:
           TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-java-sns-topic"
 
           if aws sns get-topic-attributes --topic-arn "$TOPIC_ARN" >/dev/null 2>&1; then
-            echo "❌ SNS: $TOPIC_ARN ainda existe na AWS"
+            echo "❌ SNS ainda existe na AWS"
             exit 1
           else
-            echo "✅ SNS: $TOPIC_ARN destruída com sucesso"
+            echo "✅ SNS destruída com sucesso"
           fi
 
         # Validate the Lambda SQS Trigger is destroyed
@@ -219,8 +242,8 @@ jobs:
           MAPPING_UUID=${{env.MAPPING_UUID_TRIGGER}}
 
           if aws lambda get-event-source-mapping --uuid "$MAPPING_UUID" >/dev/null 2>&1; then
-            echo "❌ Lambda SQS Trigger: $MAPPING_UUID ainda existe na AWS"
+            echo "❌ Lambda SQS Trigger ainda existe na AWS"
             exit 1
           else
-            echo "✅ Lambda SQS Trigger:$MAPPING_UUID destruída com sucesso"
+            echo "✅ Lambda SQS Trigger destruída com sucesso"
           fi

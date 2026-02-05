@@ -10,6 +10,12 @@ resource "aws_lambda_function" "hello_lambda" {
 
   role = data.aws_iam_role.lambda_role.arn
 
+   environment {
+      variables = {
+        SNS_TOPIC_ARN = aws_sns_topic.hello_topic.arn
+      }
+    }
+
   memory_size = 512
   timeout     = 10
 }
