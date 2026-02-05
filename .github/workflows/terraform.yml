@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   AWS_ACCOUNT_ID: "043391333434"
-  TF_ACTION: "destroy"
+  TF_ACTION: "appply"
   FUNCTION_NAME: "hello-java-lambda"
   QUEUE_NAME: "hello-queue"
 
@@ -57,7 +57,10 @@ jobs:
       - name: Terraform Import Lambda
         if: env.TF_ACTION == 'destroy'
         working-directory: terraform
-        run: terraform import aws_lambda_function.hello_lambda hello-java-lambda
+        run: |
+          FUNCTION_NAME=${{env.FUNCTION_NAME}}
+          echo "✅ Importando FUNCTION LAMBDA: $FUNCTION_NAME"
+          terraform import aws_lambda_function.hello_lambda hello-java-lambda
 
       # Validate Lambda import (state + AWS)
       - name: Validate Lambda Import
@@ -68,15 +71,15 @@ jobs:
 
           # valida state
           terraform state list | grep -q aws_lambda_function.hello_lambda || {
-            echo "❌ Lambda não está no state"
+            echo "❌ Lambda: $FUNCTION_NAME não está no state"
             exit 1
           }
 
           # valida AWS
           if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
-            echo "✅ Lambda importada com sucesso e existe na AWS"
+            echo "✅ Lambda: $FUNCTION_NAME importada com sucesso e existe na AWS"
           else
-            echo "❌ Lambda não existe na AWS"
+            echo "❌ Lambda: $FUNCTION_NAME não existe na AWS"
             exit 1
           fi
 
@@ -92,7 +95,7 @@ jobs:
             --query 'QueueUrl' \
             --output text)
 
-          echo "Importando SQS: $QUEUE_URL"
+          echo "✅ Importando SQS: $QUEUE_URL"
 
           terraform import aws_sqs_queue.hello_queue "$QUEUE_URL"
 
@@ -105,15 +108,43 @@ jobs:
 
           # valida state
           terraform state list | grep -q aws_sqs_queue.hello_queue || {
-            echo "❌ SQS não está no state"
+            echo "❌ SQS: $QUEUE_NAME não está no state"
             exit 1
           }
 
           # valida AWS
           if aws sqs get-queue-url --queue-name "$QUEUE_NAME" >/dev/null 2>&1; then
-            echo "✅ SQS importada com sucesso e existe na AWS"
+            echo "✅ SQS: $QUEUE_NAME importada com sucesso e existe na AWS"
           else
-            echo "❌ SQS não existe na AWS"
+            echo "❌ SQS: $QUEUE_NAME não existe na AWS"
+            exit 1
+          fi
+
+      - name: Terraform import SNS
+        if: env.TF_ACTION == 'destroy'
+        working-directory: terraform
+        run: |
+          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-topic"
+          echo "✅ Importando SNS topic: $TOPIC_ARN"
+          terraform import aws_sns_topic.hello_topic "$TOPIC_ARN"
+
+      - name: Validate SNS Import
+        if: env.TF_ACTION == 'destroy'
+        working-directory: terraform
+        run: |
+          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-topic"
+
+          # valida state
+          terraform state list | grep -q aws_sns_topic.hello_topic || {
+            echo "❌ SNS: $TOPIC_ARN não está no state"
+            exit 1
+          }
+
+          # valida AWS
+          if aws sns get-topic-attributes --topic-arn "$TOPIC_ARN" >/dev/null 2>&1; then
+            echo "✅ SNS: $TOPIC_ARN importada com sucesso e existe na AWS"
+          else
+            echo "❌ SNS: $TOPIC_ARN não existe na AWS"
             exit 1
           fi
 
@@ -153,4 +184,17 @@ jobs:
             exit 1
           else
             echo "✅ Lambda destruída com sucesso"
+          fi
+
+        # Validate the SNS topic is destroyed
+      - name: Validate SNS Destroyed
+        if: env.TF_ACTION == 'destroy'
+        run: |
+          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-topic"
+
+          if aws sns get-topic-attributes --topic-arn "$TOPIC_ARN" >/dev/null 2>&1; then
+            echo "❌ SNS ainda existe na AWS"
+            exit 1
+          else
+            echo "✅ SNS destruída com sucesso"
           fi
