@@ -137,7 +137,7 @@ jobs:
         if: env.TF_ACTION == 'destroy'
         working-directory: terraform
         run: |
-          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-topic"
+          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-java-sns-topic"
           echo "✅ Importando SNS topic: $TOPIC_ARN"
           terraform import aws_sns_topic.hello_topic "$TOPIC_ARN"
 
@@ -145,7 +145,7 @@ jobs:
         if: env.TF_ACTION == 'destroy'
         working-directory: terraform
         run: |
-          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-topic"
+          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-java-sns-topic"
 
           # valida state
           terraform state list | grep -q aws_sns_topic.hello_topic || {
@@ -203,7 +203,7 @@ jobs:
       - name: Validate SNS Destroyed
         if: env.TF_ACTION == 'destroy'
         run: |
-          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-topic"
+          TOPIC_ARN="arn:aws:sns:${{env.AWS_REGION}}:${{env.AWS_ACCOUNT_ID}}:hello-java-sns-topic"
 
           if aws sns get-topic-attributes --topic-arn "$TOPIC_ARN" >/dev/null 2>&1; then
             echo "❌ SNS: $TOPIC_ARN ainda existe na AWS"
